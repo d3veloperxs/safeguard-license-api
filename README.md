@@ -1,0 +1,1 @@
+# safeguard-license-api
