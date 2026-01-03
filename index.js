@@ -1,50 +1,46 @@
 const express = require("express");
+const fs = require("fs");
 const cors = require("cors");
-const fs = require("fs-extra");
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-const FILE = "./licenses.json";
+const FILE = "licenses.json";
 
-// Zorg dat bestand bestaat
 if (!fs.existsSync(FILE)) {
-  fs.writeJsonSync(FILE, []);
+  fs.writeFileSync(FILE, JSON.stringify([]));
 }
 
-// License generator
-function generateKey() {
-  return "SG-" + Math.floor(10000000 + Math.random() * 90000000);
-}
-
-// Buy endpoint
-app.post("/buy", async (req, res) => {
-  const { email } = req.body;
-  if (!email) return res.status(400).json({ error: "Email required" });
-
-  const licenses = await fs.readJson(FILE);
-  const key = generateKey();
-
-  licenses.push({
-    email,
-    key,
-    createdAt: new Date().toISOString()
-  });
-
-  await fs.writeJson(FILE, licenses, { spaces: 2 });
-
-  res.json({ success: true, key });
+app.get("/", (req, res) => {
+  res.send("SafeGuard License API running");
 });
 
-// Verify endpoint (voor anticheat)
-app.get("/verify/:key", async (req, res) => {
-  const { key } = req.params;
-  const licenses = await fs.readJson(FILE);
+app.get("/licenses", (req, res) => {
+  const data = JSON.parse(fs.readFileSync(FILE));
+  res.json(data);
+});
 
-  const found = licenses.find(l => l.key === key);
-  res.json({ valid: !!found });
+app.post("/generate", (req, res) => {
+  const licenses = JSON.parse(fs.readFileSync(FILE));
+
+  let key;
+  do {
+    key = "SG-" + Math.floor(10000000 + Math.random() * 90000000);
+  } while (licenses.includes(key));
+
+  licenses.push(key);
+  fs.writeFileSync(FILE, JSON.stringify(licenses, null, 2));
+
+  res.json({ key });
+});
+
+app.get("/verify", (req, res) => {
+  const { key } = req.query;
+  const licenses = JSON.parse(fs.readFileSync(FILE));
+
+  res.json({ valid: licenses.includes(key) });
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log("API running on", PORT));
+app.listen(PORT, () => console.log("Running on", PORT));
