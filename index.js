@@ -6,41 +6,43 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-const FILE = "licenses.json";
+const FILE = "./licenses.json";
 
+// init file
 if (!fs.existsSync(FILE)) {
   fs.writeFileSync(FILE, JSON.stringify([]));
 }
 
-app.get("/", (req, res) => {
-  res.send("SafeGuard License API running");
-});
+function generateKey() {
+  return "SG-" + Math.floor(10000000 + Math.random() * 90000000);
+}
 
-app.get("/licenses", (req, res) => {
-  const data = JSON.parse(fs.readFileSync(FILE));
-  res.json(data);
-});
+// BUY LICENSE
+app.post("/buy", (req, res) => {
+  const { email } = req.body;
+  if (!email) return res.status(400).json({ error: "Email required" });
 
-app.post("/generate", (req, res) => {
   const licenses = JSON.parse(fs.readFileSync(FILE));
+  const key = generateKey();
 
-  let key;
-  do {
-    key = "SG-" + Math.floor(10000000 + Math.random() * 90000000);
-  } while (licenses.includes(key));
+  licenses.push({
+    key,
+    email,
+    createdAt: new Date().toISOString()
+  });
 
-  licenses.push(key);
   fs.writeFileSync(FILE, JSON.stringify(licenses, null, 2));
 
   res.json({ key });
 });
 
-app.get("/verify", (req, res) => {
-  const { key } = req.query;
+// CHECK LICENSE (ANTICHEAT)
+app.get("/check/:key", (req, res) => {
   const licenses = JSON.parse(fs.readFileSync(FILE));
+  const found = licenses.find(l => l.key === req.params.key);
 
-  res.json({ valid: licenses.includes(key) });
+  res.json({ valid: !!found });
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log("Running on", PORT));
+app.listen(PORT, () => console.log("API running on", PORT));
